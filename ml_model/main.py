@@ -41,7 +41,7 @@ def load_data(path, process = True):
 
     dataset = []
     for (i, name) in enumerate(names):
-        # if i == 10:
+        # if i == n:
         #     break
         img = cv2.imread(path + "input/" + name)
         if process:
@@ -51,7 +51,7 @@ def load_data(path, process = True):
             # img /= 255
         dataset.append(img)
 
-    angles = np.load(path + "output.npy")
+    angles = np.load(path + "output.npy")#[:n]
     return np.array(dataset), angles
 
 input_data, output_data = load_data(directory)
@@ -75,7 +75,7 @@ for layer in resnet.layers[:-4]:
     layer.trainable = False
 # for layer in resnet.layers[:]:
 #     layer.trainable = False
- 
+
 # for layer in resnet.layers:
 #     print(layer, layer.trainable)
 
@@ -101,7 +101,7 @@ model = make_model()
 print(model.summary())
 
 # history = model.fit(input_train, output_train, epochs=10, validation_data=(input_test, output_test), batch_size=128, verbose=1, shuffle=1)
-history = model.fit(input_data, output_data, epochs=25, batch_size=256, verbose=1, shuffle=1)
+history = model.fit(input_data, output_data, epochs=10, batch_size=64, verbose=1, shuffle=1)
 # history = model.fit(input_data, output_data, epochs=25, batch_size=256, verbose=1, shuffle=1)
 
 # plt.plot(history.history['loss'])
@@ -117,7 +117,7 @@ if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
 
     input_images = []
     input_images, outputs = load_data(directory, True)
-    processed_images = input_data 
+    processed_images = input_data
     names = sorted(os.listdir(directory + "input"))
     # for name in names:
         # img = cv2.imread(directory + "input/" + name)

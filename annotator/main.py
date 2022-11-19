@@ -77,9 +77,13 @@ class Annotator(object):
             if not result:
                 break
 
+            if i % FRAME_SKIP:
+                self.values.append(-1)
+                continue
+
             frame = cv2.pyrDown(frame)
             cv2.imshow(windowName, frame)
-            if self.capture and i % FRAME_SKIP == 0:
+            if self.capture:
                 self.values.append(self.mouseX / frame.shape[1])
             else:
                 self.values.append(-1)
