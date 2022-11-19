@@ -32,17 +32,17 @@ def process_image(img):
     img = img_to_array(img)
     return img
 
-def load_data(dir):
+def load_data(path):
 
     names = sorted(os.listdir(directory + "input"))
 
     dataset = []
     for name in names:
-        img = load_img(dir + "input/" + name, color_mode = "rgb")
+        img = load_img(path + "input/" + name, color_mode = "rgb")
         img = process_image(img)
         dataset.append(img)
 
-    angles = np.load(dir + "output.npy")
+    angles = np.load(path + "output.npy")
     return np.array(dataset), angles
 
 input_data, output_data = load_data(directory)
@@ -78,7 +78,7 @@ def make_model():
   # model.add(Dropout(0.5))
   model.add(Dense(10, activation='elu'))
   # model.add(Dropout(0.5))
-  model.add(Dense(1))
+  model.add(Dense(1, activation='sigmoid'))
   optimizer = Adam(learning_rate=1e-3)
   model.compile(loss='mse', optimizer=optimizer, metrics=['accuracy'])
   return model
@@ -86,15 +86,39 @@ def make_model():
 model = make_model()
 # print(model.summary())
 
-history = model.fit(input_train, output_train, epochs=25, validation_data=(input_test, output_test), batch_size=128, verbose=1, shuffle=1)
+history = model.fit(input_train, output_train, epochs=5, validation_data=(input_test, output_test), batch_size=128, verbose=1, shuffle=1)
 
-plt.plot(history.history['loss'])
-plt.plot(history.history['val_loss'])
-plt.legend(['training', 'validation'])
-plt.title('Loss')
-plt.xlabel('Epoch')
-
+# plt.plot(history.history['loss'])
+# plt.plot(history.history['val_loss'])
+# plt.legend(['training', 'validation'])
+# plt.title('Loss')
+# plt.xlabel('Epoch')
+#
 # plt.show()
 
-if (input("Would you like to preview the model's predictions? y/N") == "y"):
+# if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
+if (True):
+
+    input_images = []
+    processed_images = []
+    names = sorted(os.listdir(directory + "input"))
+    for name in names:
+        img = load_img(directory + "input/" + name, color_mode = "rgb")
+        input_images.append(img)
+        img = process_image(img)
+        processed_images.append(img)
+
+    predictions = model.predict(np.array(processed_images))
+    outputs = np.load(directory + "output.npy")
+
+
+
+    for input_image, prediction, output in zip(input_images, predictions, outputs):
+        frame = cv2.pyrDown(np.array(input_image))
+        cv2.imshow('Frame', frame)
+        print(f"{prediction[0]=}, {output=}")
+
+        key = cv2.waitKey(5) & 0xFF
+        if key == ord("q"):
+            break
 
