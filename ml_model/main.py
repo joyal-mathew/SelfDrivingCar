@@ -7,9 +7,11 @@ import os
 import keras
 from keras.models import Sequential
 from keras.optimizers import Adam
-from keras.layers import Convolution2D, MaxPooling2D, Dropout, Flatten, Dense
+from keras.layers import Convolution2D, MaxPooling2D, Dropout, Flatten, Dense, BatchNormalization
 from keras.utils import load_img
 from keras.utils import img_to_array
+
+from keras.applications.resnet import preprocess_input
 
 import cv2
 # import pandas as pd
@@ -23,23 +25,30 @@ from sklearn.model_selection import train_test_split
 
 directory = "annotator/dataset/"
 
-def process_image(img):
-    img = cv2.cvtColor(img_to_array(img), cv2.COLOR_RGB2YUV)
-    # img = cv2.GaussianBlur(img, (3, 3), 0)
-    img = cv2.resize(img, (100, 100))
-    img = img / 255
 
+def process_image(img):
+    # img = cv2.cvtColor(img, cv2.COLOR_RGB2YUV)
+    # img = cv2.GaussianBlur(img, (3, 3), 0)
+    img = cv2.resize(img, (224, 224))
+    # img = img / 255
+    img = preprocess_input(img)
     img = img_to_array(img)
     return img
 
-def load_data(path):
+def load_data(path, process = True):
 
     names = sorted(os.listdir(directory + "input"))
 
     dataset = []
-    for name in names:
-        img = load_img(path + "input/" + name, color_mode = "rgb")
-        img = process_image(img)
+    for (i, name) in enumerate(names):
+        # if i == 10:
+        #     break
+        img = cv2.imread(path + "input/" + name)
+        if process:
+            img = process_image(img)
+        # else:
+            # img = img
+            # img /= 255
         dataset.append(img)
 
     angles = np.load(path + "output.npy")
@@ -59,10 +68,13 @@ print(input_data.size)
 print(output_data.size)
 
 from keras.applications import ResNet50
-resnet = ResNet50(weights='imagenet', include_top=False, input_shape=(100, 100, 3))
+resnet = ResNet50(weights='imagenet')
 
+# input_data = preprocess_input(input_data)
 for layer in resnet.layers[:-4]:
     layer.trainable = False
+# for layer in resnet.layers[:]:
+#     layer.trainable = False
  
 # for layer in resnet.layers:
 #     print(layer, layer.trainable)
@@ -72,21 +84,25 @@ def make_model():
   model.add(resnet)
   # model.add(Dropout(0.5))
   model.add(Flatten())
-  model.add(Dense(100, activation='elu'))
+  # model.add(BatchNormalization())
+  model.add(Dense(100, activation='leaky_relu'))
   # model.add(Dropout(0.5))
-  model.add(Dense(50, activation='elu'))
+  model.add(Dense(50, activation='leaky_relu'))
   # model.add(Dropout(0.5))
-  model.add(Dense(10, activation='elu'))
+  model.add(Dense(10, activation='leaky_relu'))
   # model.add(Dropout(0.5))
-  model.add(Dense(1, activation='sigmoid'))
+  model.add(Dense(1))
+  # model.add(Dense(1))
   optimizer = Adam(learning_rate=1e-3)
   model.compile(loss='mse', optimizer=optimizer, metrics=['accuracy'])
   return model
 
 model = make_model()
-# print(model.summary())
+print(model.summary())
 
-history = model.fit(input_train, output_train, epochs=5, validation_data=(input_test, output_test), batch_size=128, verbose=1, shuffle=1)
+# history = model.fit(input_train, output_train, epochs=10, validation_data=(input_test, output_test), batch_size=128, verbose=1, shuffle=1)
+history = model.fit(input_data, output_data, epochs=10, batch_size=128, verbose=1, shuffle=1)
+# history = model.fit(input_data, output_data, epochs=25, batch_size=256, verbose=1, shuffle=1)
 
 # plt.plot(history.history['loss'])
 # plt.plot(history.history['val_loss'])
@@ -96,29 +112,37 @@ history = model.fit(input_train, output_train, epochs=5, validation_data=(input_
 #
 # plt.show()
 
-# if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
-if (True):
+if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
+# if (True):
 
     input_images = []
-    processed_images = []
+    input_images, outputs = load_data(directory, True)
+    processed_images = input_data 
     names = sorted(os.listdir(directory + "input"))
-    for name in names:
-        img = load_img(directory + "input/" + name, color_mode = "rgb")
-        input_images.append(img)
-        img = process_image(img)
-        processed_images.append(img)
+    # for name in names:
+        # img = cv2.imread(directory + "input/" + name)
+        # cv2.imshow("test3", img)
+        # cv2.waitKey(0)
+        # break
+        # input_images.append(np.array(img))
+    #     img = process_image(img)
+    #     processed_images.append(img)
 
+
+    print("predicting...")
     predictions = model.predict(np.array(processed_images))
-    outputs = np.load(directory + "output.npy")
+    # outputs = np.load(directory + "output.npy")
 
 
 
     for input_image, prediction, output in zip(input_images, predictions, outputs):
-        frame = cv2.pyrDown(np.array(input_image))
-        cv2.imshow('Frame', frame)
+        # input_image = cv2.pyrDown(np.array(input_image))
+        cv2.imshow('Frame', input_image)
         print(f"{prediction[0]=}, {output=}")
 
-        key = cv2.waitKey(5) & 0xFF
+        key = cv2.waitKey(20) & 0xFF
         if key == ord("q"):
             break
 
+    print("prediction mean: ", np.mean(predictions))
+    print("truth mean: ", np.mean(outputs))
