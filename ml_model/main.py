@@ -32,7 +32,7 @@ def process_image(img):
     img = cv2.resize(img, (224, 224))
     # img = img / 255
     img = preprocess_input(img)
-    img = img_to_array(img)
+    # img = img_to_array(img)
     return img
 
 def load_data(path, process = True):
@@ -85,23 +85,23 @@ def make_model():
   # model.add(Dropout(0.5))
   model.add(Flatten())
   # model.add(BatchNormalization())
-  model.add(Dense(100, activation='leaky_relu'))
+  model.add(Dense(100, activation='elu'))
   # model.add(Dropout(0.5))
-  model.add(Dense(50, activation='leaky_relu'))
+  model.add(Dense(50, activation='elu'))
   # model.add(Dropout(0.5))
-  model.add(Dense(10, activation='leaky_relu'))
+  model.add(Dense(10, activation='elu'))
   # model.add(Dropout(0.5))
   model.add(Dense(1))
   # model.add(Dense(1))
-  optimizer = Adam(learning_rate=1e-3)
-  model.compile(loss='mse', optimizer=optimizer, metrics=['accuracy'])
+  # optimizer = Adam(learning_rate=1e-3)
+  model.compile(loss='mse', optimizer='adam')
   return model
 
 model = make_model()
 print(model.summary())
 
 # history = model.fit(input_train, output_train, epochs=10, validation_data=(input_test, output_test), batch_size=128, verbose=1, shuffle=1)
-history = model.fit(input_data, output_data, epochs=10, batch_size=128, verbose=1, shuffle=1)
+history = model.fit(input_data, output_data, epochs=25, batch_size=256, verbose=1, shuffle=1)
 # history = model.fit(input_data, output_data, epochs=25, batch_size=256, verbose=1, shuffle=1)
 
 # plt.plot(history.history['loss'])
@@ -146,3 +146,5 @@ if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
 
     print("prediction mean: ", np.mean(predictions))
     print("truth mean: ", np.mean(outputs))
+
+    # todo plot a comparison graph of these two arrays
