@@ -75,7 +75,8 @@ class Annotator(object):
 
 
 if __name__ == "__main__":
+    filename = "input.MOV"
     Annotator() \
-        .annotate("data/sample-5s.mp4") \
-        .save_video("data/sample-5s.mp4", "dataset/input") \
+        .annotate("data/" + filename) \
+        .save_video("data/" + filename, "dataset/input") \
         .finish()
