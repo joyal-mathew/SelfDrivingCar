@@ -4,6 +4,8 @@ import time
 import os
 import numpy as np
 
+FRAME_SKIP = 5 # Count every n frames
+
 
 def info(s, *args, **kwargs):
     print("\033[33m[INFO]\033[0m\t" + s, *args, **kwargs)
@@ -12,11 +14,20 @@ def info(s, *args, **kwargs):
 class Annotator(object):
     def __init__(self):
         self.mouseX = 0
+        self.capture = False
         self.i = 0
+        self.written = 0
         self.values = []
 
     def mouseMove(event, x, _y, _flags, self):
         self.mouseX = x
+
+        if event == cv2.EVENT_LBUTTONDOWN:
+            info("Capturing")
+            self.capture = True
+        elif event == cv2.EVENT_LBUTTONUP:
+            info("Not Capturing")
+            self.capture = False
 
     def save_video(self, path, outputdir):
         width = len(str(len(self.values)))
@@ -35,8 +46,9 @@ class Annotator(object):
                 break
 
             frame = cv2.pyrDown(frame)
-            cv2.imwrite(f"{outputdir}/img{str(self.i).rjust(width, '0')}.png", frame)
-
+            if self.values[self.i] >= 0:
+                cv2.imwrite(f"{outputdir}/img{str(self.i).rjust(width, '0')}.png", frame)
+                self.written += 1
             self.i += 1
 
         return self
@@ -59,7 +71,7 @@ class Annotator(object):
 
         delay = 0
 
-        while True:
+        for i in itertools.count():
             result, frame = video.read()
 
             if not result:
@@ -67,7 +79,10 @@ class Annotator(object):
 
             frame = cv2.pyrDown(frame)
             cv2.imshow(windowName, frame)
-            self.values.append(self.mouseX / frame.shape[1])
+            if self.capture and i % FRAME_SKIP == 0:
+                self.values.append(self.mouseX / frame.shape[1])
+            else:
+                self.values.append(-1)
 
             key = cv2.waitKey(delay) & 0xFF
             delay = mspf
@@ -81,7 +96,8 @@ class Annotator(object):
 
     def finish(self):
         info("Saving control values")
-        assert(len(self.values) == self.i)
+        self.values = [v for v in self.values if v >= 0]
+        assert(len(self.values) == self.written)
         np.save("annotator/dataset/output.npy", np.array(self.values))
 
 
