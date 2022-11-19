@@ -54,18 +54,23 @@ class Annotator(object):
         cv2.namedWindow(windowName)
         cv2.setMouseCallback(windowName, Annotator.mouseMove, self)
 
-        cv2.waitKey(0)
+        delay = 0
 
         while True:
-            key = cv2.waitKey(mspf) & 0xFF
             result, frame = video.read()
 
-            if not result or key == ord("q"):
+            if not result:
                 break
 
             frame = cv2.pyrDown(frame)
             cv2.imshow(windowName, frame)
             self.values.append(self.mouseX / frame.shape[1])
+
+            key = cv2.waitKey(delay) & 0xFF
+            delay = mspf
+
+            if key == ord("q"):
+                break
 
         cv2.destroyWindow(windowName)
 
