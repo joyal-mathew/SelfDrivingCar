@@ -54,6 +54,8 @@ class Annotator(object):
         cv2.namedWindow(windowName)
         cv2.setMouseCallback(windowName, Annotator.mouseMove, self)
 
+        cv2.waitKey(0)
+
         while True:
             key = cv2.waitKey(mspf) & 0xFF
             result, frame = video.read()
