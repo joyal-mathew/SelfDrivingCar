@@ -11,8 +11,10 @@ def info(s, *args, **kwargs):
 class Annotator(object):
     def __init__(self):
         self.mouseX = 0
+        self.i = 0
+        self.values = []
 
-    def mouseMove(event, x, y, flags, self):
+    def mouseMove(event, x, _y, _flags, self):
         self.mouseX = x
 
     def save_video(self, path, outputdir):
@@ -23,14 +25,18 @@ class Annotator(object):
         if not video.isOpened():
             raise IOError(f"Could not open video, {path}")
 
-        for i in itertools.count():
+        while True:
             result, frame = video.read()
 
             if not result:
                 break
 
             frame = cv2.pyrDown(frame)
-            cv2.imwrite(f"{outputdir}/img{i:03}.png", frame)
+            cv2.imwrite(f"{outputdir}/img{self.i:03}.png", frame)
+
+            self.i += 1
+
+        return self
 
     def annotate(self, path):
         info(f"Starting annotation of video, {path}")
@@ -48,9 +54,6 @@ class Annotator(object):
         cv2.namedWindow(windowName)
         cv2.setMouseCallback(windowName, Annotator.mouseMove, self)
 
-        delta = 0
-        values = []
-
         while True:
             key = cv2.waitKey(mspf) & 0xFF
             result, frame = video.read()
@@ -60,13 +63,19 @@ class Annotator(object):
 
             frame = cv2.pyrDown(frame)
             cv2.imshow(windowName, frame)
-            values.append(self.mouseX / frame.shape[1])
+            self.values.append(self.mouseX / frame.shape[1])
 
         cv2.destroyWindow(windowName)
-        np.save("dataset/output.npy", np.array(values))
+
+        return self
+
+    def finish(self):
+        info("Saving control values")
+        np.save("dataset/output.npy", np.array(self.values))
 
 
 if __name__ == "__main__":
-    annotator = Annotator()
-    annotator.annotate("data/sample-5s.mp4")
-    annotator.save_video("data/sample-5s.mp4", "data/input")
+    Annotator() \
+        .annotate("data/sample-5s.mp4") \
+        .save_video("data/sample-5s.mp4", "dataset/input") \
+        .finish()
