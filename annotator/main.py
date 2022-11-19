@@ -73,12 +73,12 @@ class Annotator(object):
 
     def finish(self):
         info("Saving control values")
-        np.save("dataset/output.npy", np.array(self.values))
+        np.save("annotator/dataset/output.npy", np.array(self.values))
 
 
 if __name__ == "__main__":
     filename = "input.MOV"
     Annotator() \
-        .annotate("data/" + filename) \
-        .save_video("data/" + filename, "dataset/input") \
+        .annotate("annotator/data/" + filename) \
+        .save_video("annotator/data/" + filename, "annotator/dataset/input") \
         .finish()
