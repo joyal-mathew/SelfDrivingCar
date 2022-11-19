@@ -19,6 +19,8 @@ class Annotator(object):
         self.mouseX = x
 
     def save_video(self, path, outputdir):
+        width = len(str(len(self.values)))
+        print(width)
         info(f"Saving video, {path} to {outputdir}")
 
         video = cv2.VideoCapture(path)
@@ -33,7 +35,7 @@ class Annotator(object):
                 break
 
             frame = cv2.pyrDown(frame)
-            cv2.imwrite(f"{outputdir}/img{self.i:03}.png", frame)
+            cv2.imwrite(f"{outputdir}/img{str(self.i).rjust(width, '0')}.png", frame)
 
             self.i += 1
 
