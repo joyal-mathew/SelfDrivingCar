@@ -1,6 +1,7 @@
 import itertools
 import cv2
 import time
+import os
 import numpy as np
 
 
@@ -78,12 +79,23 @@ class Annotator(object):
 
     def finish(self):
         info("Saving control values")
+        assert(len(self.values) == self.i)
         np.save("annotator/dataset/output.npy", np.array(self.values))
 
 
 if __name__ == "__main__":
-    filename = "input.MOV"
-    Annotator() \
-        .annotate("annotator/data/" + filename) \
-        .save_video("annotator/data/" + filename, "annotator/dataset/input") \
-        .finish()
+    if not os.path.exists("annotator/dataset/input"):
+        os.makedirs("annotator/dataset/input")
+
+    for file in os.listdir("annotator/dataset/input"):
+        os.remove("annotator/dataset/input/" + file)
+
+    annotator = Annotator()
+
+    for file in os.listdir("annotator/data"):
+        annotator.annotate("annotator/data/" + file)
+
+    for file in os.listdir("annotator/data"):
+        annotator.save_video("annotator/data/" + file, "annotator/dataset/input")
+
+    annotator.finish()
