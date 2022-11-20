@@ -89,7 +89,7 @@ def load_data(path, batch_size = 512, shuffle = True, process = True):
 
 input_data = load_data(directory, shuffle = False)
 input_data = input_data.unbatch()
-input_train, input_test = split_dataset(input_data, left_size = .3)
+input_train, input_test = split_dataset(input_data, left_size = .8)
 input_train = input_train.batch(128)
 input_test = input_test.batch(128)
 # input_train, input_test, output_train, output_test = train_test_split(input_data, output_data, test_size=0.2, random_state=0)
@@ -130,7 +130,7 @@ def make_model():
   model.add(Dense(1))
   # model.add(Dense(1))
   # optimizer = Adam(learning_rate=1e-3)
-  model.compile(loss='mse', optimizer='adam')
+  model.compile(loss='mse', optimizer='RMSprop')
   return model
 
 model = make_model()
@@ -138,8 +138,14 @@ print(model.summary())
 # print(model.layers)
 # model.layers[0].trainable=False 
 
+my_callbacks = [
+    tf.keras.callbacks.EarlyStopping(patience=5, monitor="loss", restore_best_weights=True),
+    # tf.keras.callbacks.ModelCheckpoint(filepath='model.{epoch:02d}-{val_loss:.2f}.h5'),
+    # tf.keras.callbacks.TensorBoard(log_dir='./logs'),
+]
+
 # history = model.fit(input_train, output_train, epochs=10, validation_data=(input_test, output_test), batch_size=128, verbose=1, shuffle=1)
-history = model.fit(input_train, epochs=25, batch_size=64, verbose=1, shuffle=1)
+history = model.fit(input_train, validation_data=input_test, validation_freq=2, epochs=100, verbose=1, shuffle=1, callbacks=my_callbacks)
 # history = model.fit(input_data, output_data, epochs=25, batch_size=256, verbose=1, shuffle=1)
 
 # plt.plot(history.history['loss'])
@@ -150,11 +156,11 @@ history = model.fit(input_train, epochs=25, batch_size=64, verbose=1, shuffle=1)
 #
 # plt.show()
 
-# if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
-if (True):
+if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
+# if (True):
 
     input_images = []
-    input_images = load_data(directory, 512, False, True)
+    input_images = load_data(directory, 128, False, True)
     # processed_images = input_data
     # names = sorted(os.listdir(directory + "input"))
     # for name in names:
