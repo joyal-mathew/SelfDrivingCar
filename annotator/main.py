@@ -7,8 +7,12 @@ import numpy as np
 FRAME_SKIP = 5 # Count every n frames
 
 
+def warn(s, *args, **kwargs):
+    print("\033[33m[WARN]\033[0m\t" + s, *args, **kwargs)
+
+
 def info(s, *args, **kwargs):
-    print("\033[33m[INFO]\033[0m\t" + s, *args, **kwargs)
+    print("\033[36m[INFO]\033[0m\t" + s, *args, **kwargs)
 
 
 class Annotator(object):
@@ -105,12 +109,17 @@ class Annotator(object):
         np.save("annotator/dataset/output.npy", np.array(self.values))
 
 
-if __name__ == "__main__":
+def main():
     if not os.path.exists("annotator/dataset/input"):
         os.makedirs("annotator/dataset/input")
+    else:
+        warn("Are you sure you want to clear the annotator data? [yes/no]")
+        answer = input("> ")
+        if answer != "yes":
+            return
 
-    for file in os.listdir("annotator/dataset/input"):
-        os.remove("annotator/dataset/input/" + file)
+        for file in os.listdir("annotator/dataset/input"):
+            os.remove("annotator/dataset/input/" + file)
 
     annotator = Annotator()
 
@@ -121,3 +130,7 @@ if __name__ == "__main__":
         annotator.save_video("annotator/data/" + file, "annotator/dataset/input")
 
     annotator.finish()
+
+
+if __name__ == "__main__":
+    main()
