@@ -89,7 +89,7 @@ def load_data(path, batch_size = 512, shuffle = True, process = True):
 
 input_data = load_data(directory, shuffle = False)
 input_data = input_data.unbatch()
-input_train, input_test = split_dataset(input_data, left_size = .1)
+input_train, input_test = split_dataset(input_data, left_size = .3)
 input_train = input_train.batch(128)
 input_test = input_test.batch(128)
 # input_train, input_test, output_train, output_test = train_test_split(input_data, output_data, test_size=0.2, random_state=0)
@@ -107,7 +107,7 @@ from keras.applications import ResNet50
 resnet = ResNet50(weights='imagenet')
 
 # input_data = preprocess_input(input_data)
-for layer in resnet.layers[:-4]:
+for layer in resnet.layers[:143]:
     layer.trainable = False
 # for layer in resnet.layers[:]:
 #     layer.trainable = False
@@ -135,6 +135,8 @@ def make_model():
 
 model = make_model()
 print(model.summary())
+# print(model.layers)
+# model.layers[0].trainable=False 
 
 # history = model.fit(input_train, output_train, epochs=10, validation_data=(input_test, output_test), batch_size=128, verbose=1, shuffle=1)
 history = model.fit(input_train, epochs=25, batch_size=64, verbose=1, shuffle=1)
