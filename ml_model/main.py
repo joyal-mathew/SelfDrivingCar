@@ -46,17 +46,27 @@ def load_data(path, process = True):
     print(dataset)
 
     angles = np.load(path + "output.npy")
-    angles = (a for a in angles)
+    angles = tf.data.Dataset.from_tensor_slices(angles.tolist())
+    # angles = iter(angles)
 
-    dataset = dataset.map(lambda path: (process_path(path), next(angles)))
-    dataset = dataset.batch(25)
+    dataset = dataset.map(process_path, num_parallel_calls=tf.data.AUTOTUNE)
+    dataset = tf.data.Dataset.zip((dataset, angles))
+
+
+    dataset = dataset.cache()
+    dataset = dataset.batch(512)
+    dataset = dataset.prefetch(buffer_size=tf.data.AUTOTUNE)
 
     # print("input images: ", tf.data.experimental.cardinality(dataset).numpy())
     # print(tf.data.experimental.cardinality(val_ds).numpy())
 
-    for image, label in dataset.take(1):
-      print("Image shape: ", image.numpy().shape)
-      print("Label: ", label.numpy())
+    # for image, label in dataset.take(10):
+    #   print("Image shape: ", image.numpy().shape)
+    #   print("Label: ", label.numpy())
+
+    # for image, label in dataset.take(10):
+    #   print("Image shape: ", image.numpy().shape)
+    #   print("Label: ", label.numpy())
 
     return dataset
     # for (i, name) in enumerate(names):
