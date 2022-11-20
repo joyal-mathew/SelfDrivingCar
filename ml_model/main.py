@@ -26,6 +26,18 @@ from sklearn.model_selection import train_test_split
 
 directory = "annotator/dataset/"
 
+def load_path(path):
+    img = tf.io.read_file(path)
+    img = tf.io.decode_png(img, channels=3)
+    img = tf.image.resize(img, [224, 224])
+    # img = cv2.GaussianBlur(img, (3, 3), 0)
+    # img = cv2.resize(img, (224, 224))
+    # img = np.array(img)
+    img = img[..., ::-1]
+    img = img / 255
+    # img = preprocess_input(img)
+    # img = img_to_array(img)
+    return img
 
 def process_path(path):
     img = tf.io.read_file(path)
@@ -39,22 +51,26 @@ def process_path(path):
     # img = img_to_array(img)
     return img
 
-def load_data(path, process = True):
+def load_data(path, batch_size = 512, shuffle = True, process = True):
 
 
-    dataset = tf.data.Dataset.list_files(path + "input/*")
+    dataset = tf.data.Dataset.list_files(path + "input/*", shuffle)
     print(dataset)
 
     angles = np.load(path + "output.npy")
     angles = tf.data.Dataset.from_tensor_slices(angles.tolist())
     # angles = iter(angles)
 
-    dataset = dataset.map(process_path, num_parallel_calls=tf.data.AUTOTUNE)
+    if process:
+        dataset = dataset.map(process_path, num_parallel_calls=tf.data.AUTOTUNE)
+    else:
+        dataset = dataset.map(load_path, num_parallel_calls=tf.data.AUTOTUNE)
     dataset = tf.data.Dataset.zip((dataset, angles))
 
 
     dataset = dataset.cache()
-    dataset = dataset.batch(512)
+    if batch_size is not None:
+        dataset = dataset.batch(batch_size)
     dataset = dataset.prefetch(buffer_size=tf.data.AUTOTUNE)
 
     # print("input images: ", tf.data.experimental.cardinality(dataset).numpy())
@@ -140,13 +156,13 @@ history = model.fit(input_data, epochs=10, batch_size=64, verbose=1, shuffle=1)
 #
 # plt.show()
 
-if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
-# if (True):
+# if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
+if (True):
 
     input_images = []
-    input_images, outputs = load_data(directory, True)
-    processed_images = input_data
-    names = sorted(os.listdir(directory + "input"))
+    input_images = load_data(directory, 512, False, False)
+    # processed_images = input_data
+    # names = sorted(os.listdir(directory + "input"))
     # for name in names:
         # img = cv2.imread(directory + "input/" + name)
         # cv2.imshow("test3", img)
@@ -158,13 +174,30 @@ if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
 
 
     print("predicting...")
-    predictions = model.predict(np.array(processed_images))
-    # outputs = np.load(directory + "output.npy")
+    predictions = model.predict(input_images)
+    # predictions = predictions.unbatch()
+    # print(predictions.size)
+    # predictions = predictions.reshape((-1, *predictions.shape[-1:]))
+    input_images = input_images.unbatch()
+    print(input_images)
+    outputs = np.load(directory + "output.npy")
 
 
+    def draw_line(img, rel_x, color, thickness = 2):
+        print (img.size)
+        abs_x = 224 * rel_x
+
+        cv2.line(img, (int(abs_x),0), (int(abs_x), 224), color, thickness = thickness)
 
     for input_image, prediction, output in zip(input_images, predictions, outputs):
-        # input_image = cv2.pyrDown(np.array(input_image))
+        # input_image = cv2.pyrDown(np.array(input_image[0]))
+        input_image = input_image[0].numpy()
+        # input_image = input_image.reshape((224, 224, 3))
+        # print("size: ", input_image)
+        draw_line(input_image, .5, (0, 0, 0), 1)
+        draw_line(input_image, output, (0, 255, 0))
+        draw_line(input_image, prediction, (0, 0, 255))
+
         cv2.imshow('Frame', input_image)
         print(f"{prediction[0]=}, {output=}")
 
