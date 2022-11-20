@@ -5,7 +5,6 @@ import os
 
 # Keras
 import keras
-import tensorflow as tf
 from keras.models import Sequential
 from keras.optimizers import Adam
 from keras.layers import Convolution2D, MaxPooling2D, Dropout, Flatten, Dense, BatchNormalization
@@ -27,13 +26,10 @@ from sklearn.model_selection import train_test_split
 directory = "annotator/dataset/"
 
 
-def process_path(path):
-    img = tf.io.read_file(path)
-    img = tf.io.decode_png(img, channels=3)
-    img = tf.image.resize(img, [224, 224])
+def process_image(img):
     # img = cv2.cvtColor(img, cv2.COLOR_RGB2YUV)
     # img = cv2.GaussianBlur(img, (3, 3), 0)
-    # img = cv2.resize(img, (224, 224))
+    img = cv2.resize(img, (224, 224))
     # img = img / 255
     img = preprocess_input(img)
     # img = img_to_array(img)
@@ -41,49 +37,35 @@ def process_path(path):
 
 def load_data(path, process = True):
 
+    names = sorted(os.listdir(directory + "input"))
 
-    dataset = tf.data.Dataset.list_files(path + "input/*")
-    print(dataset)
+    dataset = []
+    for (i, name) in enumerate(names):
+        # if i == n:
+        #     break
+        img = cv2.imread(path + "input/" + name)
+        if process:
+            img = process_image(img)
+        # else:
+            # img = img
+            # img /= 255
+        dataset.append(img)
 
-    angles = np.load(path + "output.npy")
-    angles = (a for a in angles)
+    angles = np.load(path + "output.npy")#[:n]
+    return np.array(dataset), angles
 
-    dataset = dataset.map(lambda path: (process_path(path), next(angles)))
-    dataset = dataset.batch(25)
+input_data, output_data = load_data(directory)
 
-    # print("input images: ", tf.data.experimental.cardinality(dataset).numpy())
-    # print(tf.data.experimental.cardinality(val_ds).numpy())
+input_train, input_test, output_train, output_test = train_test_split(input_data, output_data, test_size=0.2, random_state=0)
 
-    for image, label in dataset.take(1):
-      print("Image shape: ", image.numpy().shape)
-      print("Label: ", label.numpy())
+print("INPUTS")
+print("Training Samples: {}\nTest Samples: {}".format(len(input_train), len(input_test)))
 
-    return dataset
-    # for (i, name) in enumerate(names):
-    #     # if i == n:
-    #     #     break
-    #     img = cv2.imread(path + "input/" + name)
-    #     if process:
-    #         img = process_image(img)
-    #     # else:
-    #         # img = img
-    #         # img /= 255
-    #     dataset.append(img)
-    #
-    # return np.array(dataset), angles
+print("OUTPUTS:")
+print("Training Samples: {}\nTest Samples: {}".format(len(input_train), len(input_test)))
 
-input_data = load_data(directory)
-
-# input_train, input_test, output_train, output_test = train_test_split(input_data, output_data, test_size=0.2, random_state=0)
-
-# print("INPUTS")
-# print("Training Samples: {}\nTest Samples: {}".format(len(input_train), len(input_test)))
-#
-# print("OUTPUTS:")
-# print("Training Samples: {}\nTest Samples: {}".format(len(input_train), len(input_test)))
-#
-# print(input_data.size)
-# print(output_data.size)
+print(input_data.size)
+print(output_data.size)
 
 from keras.applications import ResNet50
 resnet = ResNet50(weights='imagenet')
@@ -119,7 +101,7 @@ model = make_model()
 print(model.summary())
 
 # history = model.fit(input_train, output_train, epochs=10, validation_data=(input_test, output_test), batch_size=128, verbose=1, shuffle=1)
-history = model.fit(input_data, epochs=10, batch_size=64, verbose=1, shuffle=1)
+history = model.fit(input_data, output_data, epochs=10, batch_size=64, verbose=1, shuffle=1)
 # history = model.fit(input_data, output_data, epochs=25, batch_size=256, verbose=1, shuffle=1)
 
 # plt.plot(history.history['loss'])
