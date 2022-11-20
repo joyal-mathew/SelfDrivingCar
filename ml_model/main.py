@@ -18,7 +18,6 @@ from keras.applications.resnet import preprocess_input
 import cv2
 # import pandas as pd
 import random
-import ntpath
 
 # Sklearn
 from sklearn.utils import shuffle
@@ -52,7 +51,7 @@ def process_path(path):
     # img = img_to_array(img)
     return img
 
-def load_data(path, batch_size = 512, shuffle = True, process = True):
+def load_data(path, shuffle = True, process = True):
 
 
     dataset = tf.data.Dataset.list_files(path + "input/*", shuffle)
@@ -66,13 +65,12 @@ def load_data(path, batch_size = 512, shuffle = True, process = True):
         dataset = dataset.map(process_path, num_parallel_calls=tf.data.AUTOTUNE)
     else:
         dataset = dataset.map(load_path, num_parallel_calls=tf.data.AUTOTUNE)
+
     dataset = tf.data.Dataset.zip((dataset, angles))
 
-
-    dataset = dataset.cache()
-    if batch_size is not None:
-        dataset = dataset.batch(batch_size)
-    dataset = dataset.prefetch(buffer_size=tf.data.AUTOTUNE)
+    if os.name != "nt":
+        dataset = dataset.cache()
+        dataset = dataset.prefetch(buffer_size=tf.data.AUTOTUNE)
 
     # print("input images: ", tf.data.experimental.cardinality(dataset).numpy())
     # print(tf.data.experimental.cardinality(val_ds).numpy())
@@ -87,11 +85,14 @@ def load_data(path, batch_size = 512, shuffle = True, process = True):
 
     return dataset
 
+batch_size = 128;
+if os.name == "nt":
+    batch_size = 64
+
 input_data = load_data(directory, shuffle = False)
-input_data = input_data.unbatch()
 input_train, input_test = split_dataset(input_data, left_size = .8)
-input_train = input_train.batch(128)
-input_test = input_test.batch(128)
+input_train = input_train.batch(batch_size)
+input_test = input_test.batch(batch_size)
 # input_train, input_test, output_train, output_test = train_test_split(input_data, output_data, test_size=0.2, random_state=0)
 
 # print("INPUTS")
@@ -118,15 +119,15 @@ for layer in resnet.layers[:143]:
 def make_model():
   model = Sequential()
   model.add(resnet)
-  # model.add(Dropout(0.5))
+  model.add(Dropout(0.5))
   model.add(Flatten())
   # model.add(BatchNormalization())
   model.add(Dense(100, activation='elu'))
-  # model.add(Dropout(0.5))
+  model.add(Dropout(0.5))
   model.add(Dense(50, activation='elu'))
-  # model.add(Dropout(0.5))
+  model.add(Dropout(0.5))
   model.add(Dense(10, activation='elu'))
-  # model.add(Dropout(0.5))
+  model.add(Dropout(0.5))
   model.add(Dense(1))
   # model.add(Dense(1))
   # optimizer = Adam(learning_rate=1e-3)
@@ -139,13 +140,13 @@ print(model.summary())
 # model.layers[0].trainable=False 
 
 my_callbacks = [
-    tf.keras.callbacks.EarlyStopping(patience=5, monitor="loss", restore_best_weights=True),
+    tf.keras.callbacks.EarlyStopping(patience=10, monitor="loss", restore_best_weights=True),
     # tf.keras.callbacks.ModelCheckpoint(filepath='model.{epoch:02d}-{val_loss:.2f}.h5'),
     # tf.keras.callbacks.TensorBoard(log_dir='./logs'),
 ]
 
 # history = model.fit(input_train, output_train, epochs=10, validation_data=(input_test, output_test), batch_size=128, verbose=1, shuffle=1)
-history = model.fit(input_train, validation_data=input_test, validation_freq=2, epochs=100, verbose=1, shuffle=1, callbacks=my_callbacks)
+history = model.fit(input_train, validation_data=input_test, validation_freq=2, epochs=1, verbose=1, shuffle=1, callbacks=my_callbacks)
 # history = model.fit(input_data, output_data, epochs=25, batch_size=256, verbose=1, shuffle=1)
 
 # plt.plot(history.history['loss'])
@@ -160,7 +161,8 @@ if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
 # if (True):
 
     input_images = []
-    input_images = load_data(directory, 128, False, True)
+    input_images = load_data(directory, False, False)
+    input_images = input_images.batch(batch_size)
     # processed_images = input_data
     # names = sorted(os.listdir(directory + "input"))
     # for name in names:
