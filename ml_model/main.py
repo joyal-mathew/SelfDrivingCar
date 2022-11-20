@@ -11,6 +11,7 @@ from keras.optimizers import Adam
 from keras.layers import Convolution2D, MaxPooling2D, Dropout, Flatten, Dense, BatchNormalization
 from keras.utils import load_img
 from keras.utils import img_to_array
+from keras.utils import split_dataset
 
 from keras.applications.resnet import preprocess_input
 
@@ -85,21 +86,12 @@ def load_data(path, batch_size = 512, shuffle = True, process = True):
     #   print("Label: ", label.numpy())
 
     return dataset
-    # for (i, name) in enumerate(names):
-    #     # if i == n:
-    #     #     break
-    #     img = cv2.imread(path + "input/" + name)
-    #     if process:
-    #         img = process_image(img)
-    #     # else:
-    #         # img = img
-    #         # img /= 255
-    #     dataset.append(img)
-    #
-    # return np.array(dataset), angles
 
-input_data = load_data(directory)
-
+input_data = load_data(directory, shuffle = False)
+input_data = input_data.unbatch()
+input_train, input_test = split_dataset(input_data, left_size = .1)
+input_train = input_train.batch(128)
+input_test = input_test.batch(128)
 # input_train, input_test, output_train, output_test = train_test_split(input_data, output_data, test_size=0.2, random_state=0)
 
 # print("INPUTS")
@@ -145,7 +137,7 @@ model = make_model()
 print(model.summary())
 
 # history = model.fit(input_train, output_train, epochs=10, validation_data=(input_test, output_test), batch_size=128, verbose=1, shuffle=1)
-history = model.fit(input_data, epochs=10, batch_size=64, verbose=1, shuffle=1)
+history = model.fit(input_train, epochs=25, batch_size=64, verbose=1, shuffle=1)
 # history = model.fit(input_data, output_data, epochs=25, batch_size=256, verbose=1, shuffle=1)
 
 # plt.plot(history.history['loss'])
@@ -160,7 +152,7 @@ history = model.fit(input_data, epochs=10, batch_size=64, verbose=1, shuffle=1)
 if (True):
 
     input_images = []
-    input_images = load_data(directory, 512, False, False)
+    input_images = load_data(directory, 512, False, True)
     # processed_images = input_data
     # names = sorted(os.listdir(directory + "input"))
     # for name in names:
