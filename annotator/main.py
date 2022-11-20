@@ -47,7 +47,7 @@ class Annotator(object):
 
             frame = cv2.pyrDown(frame)
             if self.values[self.i] >= 0:
-                cv2.imwrite(f"{outputdir}/img{str(self.i).rjust(width, '0')}.png", frame)
+                cv2.imwrite(f"{outputdir}/img{str(self.written).rjust(width, '0')}.png", frame)
                 self.written += 1
             self.i += 1
 
