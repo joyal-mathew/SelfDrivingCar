@@ -8,6 +8,7 @@ import keras
 import tensorflow as tf
 from keras.models import Sequential
 from keras.optimizers import Adam
+from keras.optimizers import RMSprop
 from keras.layers import Convolution2D, MaxPooling2D, Dropout, Flatten, Dense, BatchNormalization
 from keras.utils import load_img
 from keras.utils import img_to_array
@@ -88,9 +89,9 @@ def load_data(path, shuffle = True, process = True):
 batch_size = 128;
 if os.name == "nt":
     batch_size = 64
-
+#
 input_data = load_data(directory, shuffle = False)
-input_train, input_test = split_dataset(input_data, left_size = .8)
+input_train, input_test = split_dataset(input_data, left_size = .5)
 input_train = input_train.batch(batch_size)
 input_test = input_test.batch(batch_size)
 # input_train, input_test, output_train, output_test = train_test_split(input_data, output_data, test_size=0.2, random_state=0)
@@ -119,34 +120,64 @@ for layer in resnet.layers[:143]:
 def make_model():
   model = Sequential()
   model.add(resnet)
-  model.add(Dropout(0.5))
+  # model.add(Dropout(0.5))
   model.add(Flatten())
   # model.add(BatchNormalization())
+  # model.add(Dense(100, activation='elu'))
+  # model.add(Dropout(0.5))
   model.add(Dense(100, activation='elu'))
-  model.add(Dropout(0.5))
+  # model.add(Dropout(0.5))
   model.add(Dense(50, activation='elu'))
-  model.add(Dropout(0.5))
+  # model.add(Dropout(0.5))
   model.add(Dense(10, activation='elu'))
-  model.add(Dropout(0.5))
+  # model.add(Dropout(0.5))
   model.add(Dense(1))
   # model.add(Dense(1))
   # optimizer = Adam(learning_rate=1e-3)
-  model.compile(loss='mse', optimizer='RMSprop')
+  optimizer = RMSprop(learning_rate= 1e-3)
+  model.compile(loss='mse', optimizer=optimizer)
   return model
 
 model = make_model()
 print(model.summary())
 # print(model.layers)
 # model.layers[0].trainable=False 
+checkpoint_filepath = '/tmp/checkpoint'
 
 my_callbacks = [
-    tf.keras.callbacks.EarlyStopping(patience=10, monitor="loss", restore_best_weights=True),
-    # tf.keras.callbacks.ModelCheckpoint(filepath='model.{epoch:02d}-{val_loss:.2f}.h5'),
-    # tf.keras.callbacks.TensorBoard(log_dir='./logs'),
+    tf.keras.callbacks.EarlyStopping(
+        patience=5,
+        verbose=True,
+        monitor="loss",
+        restore_best_weights=True),
+
+    tf.keras.callbacks.ReduceLROnPlateau(
+        monitor='loss',
+        factor=0.2,
+        verbose=True,
+          patience=3,
+          min_lr=0.001),
+
+    tf.keras.callbacks.ModelCheckpoint(
+        filepath=checkpoint_filepath,
+        verbose=1,
+        save_weights_only=True,
+        monitor='loss',
+        # mode='max',
+        save_best_only=True),
+
+    tf.keras.callbacks.TensorBoard(log_dir='./logs'),
 ]
 
-# history = model.fit(input_train, output_train, epochs=10, validation_data=(input_test, output_test), batch_size=128, verbose=1, shuffle=1)
-history = model.fit(input_train, validation_data=input_test, validation_freq=2, epochs=1, verbose=1, shuffle=1, callbacks=my_callbacks)
+
+try:
+    model.fit(input_train, validation_data=input_test, epochs=100, verbose=1, shuffle=1, callbacks=my_callbacks)
+except KeyboardInterrupt:
+    pass
+
+model.load_weights(checkpoint_filepath)
+
+
 # history = model.fit(input_data, output_data, epochs=25, batch_size=256, verbose=1, shuffle=1)
 
 # plt.plot(history.history['loss'])
@@ -157,12 +188,16 @@ history = model.fit(input_train, validation_data=input_test, validation_freq=2, 
 #
 # plt.show()
 
+input_images = []
+input_images = load_data(directory, False, True)
+# display_images = load_data(directory, False, False)
+input_images = input_images.batch(batch_size)
+print("predicting...")
+predictions = model.predict(input_images)
+
 if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
 # if (True):
 
-    input_images = []
-    input_images = load_data(directory, False, False)
-    input_images = input_images.batch(batch_size)
     # processed_images = input_data
     # names = sorted(os.listdir(directory + "input"))
     # for name in names:
@@ -175,8 +210,6 @@ if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
     #     processed_images.append(img)
 
 
-    print("predicting...")
-    predictions = model.predict(input_images)
     # predictions = predictions.unbatch()
     # print(predictions.size)
     # predictions = predictions.reshape((-1, *predictions.shape[-1:]))
@@ -191,23 +224,26 @@ if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
 
         cv2.line(img, (int(abs_x),0), (int(abs_x), 224), color, thickness = thickness)
 
-    for input_image, prediction, output in zip(input_images, predictions, outputs):
+    for img, prediction, output in zip(input_images, predictions, outputs):
         # input_image = cv2.pyrDown(np.array(input_image[0]))
-        input_image = input_image[0].numpy()
+        img = img[0].numpy()
         # input_image = input_image.reshape((224, 224, 3))
         # print("size: ", input_image)
-        draw_line(input_image, .5, (0, 0, 0), 1)
-        draw_line(input_image, output, (0, 255, 0))
-        draw_line(input_image, prediction, (0, 0, 255))
+        draw_line(img, .5, (0, 0, 0), 1)
+        draw_line(img, output, (0, 255, 0))
+        draw_line(img, prediction, (0, 0, 255))
 
-        cv2.imshow('Frame', input_image)
+        img = cv2.resize(img, [500, 500])
+        cv2.imshow('Frame', img)
         print(f"{prediction[0]=}, {output=}")
 
         key = cv2.waitKey(20) & 0xFF
         if key == ord("q"):
             break
 
+    print("prediciton stddev: ", np.std(predictions))
     print("prediction mean: ", np.mean(predictions))
+    print("truth stddev: ", np.std(outputs))
     print("truth mean: ", np.mean(outputs))
 
     # todo plot a comparison graph of these two arrays
