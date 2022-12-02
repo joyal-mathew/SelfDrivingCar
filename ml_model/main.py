@@ -9,12 +9,13 @@ import tensorflow as tf
 from keras.models import Sequential
 from keras.optimizers import Adam
 from keras.optimizers import RMSprop
-from keras.layers import Convolution2D, MaxPooling2D, Dropout, Flatten, Dense, BatchNormalization
+from keras.layers import Convolution2D, MaxPooling2D, Dropout, Flatten, Dense, BatchNormalization, Rescaling, InputLayer
 from keras.utils import load_img
 from keras.utils import img_to_array
 from keras.utils import split_dataset
 
-from keras.applications.resnet import preprocess_input
+# from keras.applications.resnet import preprocess_input
+
 
 import cv2
 # import pandas as pd
@@ -23,6 +24,7 @@ import random
 # Sklearn
 from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
+
 
 
 directory = "annotator/dataset/"
@@ -34,40 +36,55 @@ def load_path(path):
     # img = cv2.GaussianBlur(img, (3, 3), 0)
     # img = cv2.resize(img, (224, 224))
     # img = np.array(img)
-    img = img[..., ::-1]
+    # img = img[..., ::-1]
     img = img / 255
     # img = preprocess_input(img)
     # img = img_to_array(img)
     return img
 
-def process_path(path):
+def process_path_flipped(path):
+    return process_path(path, True)
+
+def process_path(path, flip = False):
     img = tf.io.read_file(path)
     img = tf.io.decode_png(img, channels=3)
     img = tf.image.resize(img, [224, 224])
+    if flip:
+        img = tf.image.flip_left_right(img)
     # img = cv2.cvtColor(img, cv2.COLOR_RGB2YUV)
     # img = cv2.GaussianBlur(img, (3, 3), 0)
     # img = cv2.resize(img, (224, 224))
     # img = img / 255
-    img = preprocess_input(img)
+    # img = preprocess_input(img)
     # img = img_to_array(img)
     return img
 
 def load_data(path, shuffle = True, process = True):
 
+    short = False;
 
     dataset = tf.data.Dataset.list_files(path + "input/*", shuffle)
+    if short:
+        dataset = dataset.take(100)
     print(dataset)
 
     angles = np.load(path + "output.npy")
+    if short:
+        angles = angles[:100]
+    angles_flipped = 1 - angles #todo make sure this is working as intended
+
     angles = tf.data.Dataset.from_tensor_slices(angles.tolist())
-    # angles = iter(angles)
+    angles_flipped = tf.data.Dataset.from_tensor_slices(angles_flipped.tolist())
+    angles_all = angles.concatenate(angles_flipped)
 
     if process:
-        dataset = dataset.map(process_path, num_parallel_calls=tf.data.AUTOTUNE)
+        dataset_unflipped = dataset.map(process_path, num_parallel_calls=tf.data.AUTOTUNE)
+        dataset_flipped = dataset.map(process_path_flipped, num_parallel_calls=tf.data.AUTOTUNE)
+        dataset = dataset_flipped.concatenate(dataset_flipped)
+        dataset = tf.data.Dataset.zip((dataset, angles_all))
     else:
         dataset = dataset.map(load_path, num_parallel_calls=tf.data.AUTOTUNE)
-
-    dataset = tf.data.Dataset.zip((dataset, angles))
+        dataset = tf.data.Dataset.zip((dataset, angles))
 
     if os.name != "nt":
         dataset = dataset.cache()
@@ -84,6 +101,32 @@ def load_data(path, shuffle = True, process = True):
     #   print("Image shape: ", image.numpy().shape)
     #   print("Label: ", label.numpy())
 
+    print("== cardinality", dataset.cardinality())
+    return dataset
+
+def diversify_data(dataset):
+
+    def map_func(*pair):
+        # print("type", type(pair))
+        # print("structure", x,y)
+        # return tf.data.Dataset.from_tensor_slices([x,y])
+        # return ((x,y), (x,y))
+        # list = []
+        # list.append(tf.data.Dataset.from_tensors([x,y]))
+        # list.append(tf.data.Dataset.from_tensors([x,y]))
+        # return tf.data.Dataset.from_tensors(pair)
+        # return tf.data.Dataset.from_tensor_slices([pair])
+        # tf.data.
+        return (pair, pair)
+
+    dataset = dataset.map(map_func)
+    print (dataset.element_spec)
+    dataset = dataset.flat_map(tf.data.Dataset.from_tensor_slices)
+    # dataset = dataset.unbatch()
+
+    print("== cardinality", dataset.cardinality())
+    print (dataset.element_spec)
+
     return dataset
 
 batch_size = 128;
@@ -92,6 +135,11 @@ if os.name == "nt":
 #
 input_data = load_data(directory, shuffle = False)
 input_train, input_test = split_dataset(input_data, left_size = .5)
+# input_train = input_data 
+# input_test = input_data
+
+# input_train = diversify_data(input_train)
+
 input_train = input_train.batch(batch_size)
 input_test = input_test.batch(batch_size)
 # input_train, input_test, output_train, output_test = train_test_split(input_data, output_data, test_size=0.2, random_state=0)
@@ -105,38 +153,44 @@ input_test = input_test.batch(batch_size)
 # print(input_data.size)
 # print(output_data.size)
 
-from keras.applications import ResNet50
-resnet = ResNet50(weights='imagenet')
+# from keras.applications import ResNet50
+from keras.applications import MobileNetV2
+mobile_net = MobileNetV2(weights='imagenet', include_top=False)
 
 # input_data = preprocess_input(input_data)
-for layer in resnet.layers[:143]:
-    layer.trainable = False
-# for layer in resnet.layers[:]:
+# for layer in mobile_net.layers[:143]:
+#     layer.trainable = False
+# for layer in mobile_net.layers[:]:
 #     layer.trainable = False
 
 # for layer in resnet.layers:
 #     print(layer, layer.trainable)
 
 def make_model():
-  model = Sequential()
-  model.add(resnet)
-  # model.add(Dropout(0.5))
-  model.add(Flatten())
-  # model.add(BatchNormalization())
-  # model.add(Dense(100, activation='elu'))
-  # model.add(Dropout(0.5))
-  model.add(Dense(100, activation='elu'))
-  # model.add(Dropout(0.5))
-  model.add(Dense(50, activation='elu'))
-  # model.add(Dropout(0.5))
-  model.add(Dense(10, activation='elu'))
-  # model.add(Dropout(0.5))
-  model.add(Dense(1))
-  # model.add(Dense(1))
-  # optimizer = Adam(learning_rate=1e-3)
-  optimizer = RMSprop(learning_rate= 1e-3)
-  model.compile(loss='mse', optimizer=optimizer)
-  return model
+    model = Sequential()
+
+    model.add(InputLayer(input_shape=(224, 224, 3)))
+
+    model.add(Rescaling(scale=1.0/127.5, offset=-1))
+
+    model.add(mobile_net)
+    # model.add(Dropout(0.5))
+    model.add(Flatten())
+    # model.add(BatchNormalization())
+    # model.add(Dense(100, activation='elu'))
+    # model.add(Dropout(0.5))
+    model.add(Dense(100, activation='elu'))
+    # model.add(Dropout(0.5))
+    model.add(Dense(50, activation='elu'))
+    # model.add(Dropout(0.5))
+    model.add(Dense(10, activation='elu'))
+    # model.add(Dropout(0.5))
+    model.add(Dense(1))
+    # model.add(Dense(1))
+    optimizer = Adam(learning_rate=1e-5)
+    # optimizer = RMSprop(learning_rate= 1e-5)
+    model.compile(loss='mse', optimizer=optimizer)
+    return model
 
 model = make_model()
 print(model.summary())
@@ -145,11 +199,11 @@ print(model.summary())
 checkpoint_filepath = '/tmp/checkpoint'
 
 my_callbacks = [
-    tf.keras.callbacks.EarlyStopping(
-        patience=5,
-        verbose=True,
-        monitor="loss",
-        restore_best_weights=True),
+    # tf.keras.callbacks.EarlyStopping(
+    #     patience=5,
+    #     verbose=True,
+    #     monitor="loss",
+    #     restore_best_weights=True),
 
     tf.keras.callbacks.ReduceLROnPlateau(
         monitor='loss',
@@ -170,10 +224,10 @@ my_callbacks = [
 ]
 
 
-try:
-    model.fit(input_train, validation_data=input_test, epochs=100, verbose=1, shuffle=1, callbacks=my_callbacks)
-except KeyboardInterrupt:
-    pass
+# try:
+model.fit(input_train, validation_data=input_test, epochs=200, verbose=1, shuffle=1, callbacks=my_callbacks)
+# except KeyboardInterrupt:
+#     pass
 
 model.load_weights(checkpoint_filepath)
 
