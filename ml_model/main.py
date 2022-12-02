@@ -29,18 +29,18 @@ from sklearn.model_selection import train_test_split
 
 directory = "annotator/dataset/"
 
-def load_path(path):
-    img = tf.io.read_file(path)
-    img = tf.io.decode_png(img, channels=3)
-    img = tf.image.resize(img, [224, 224])
-    # img = cv2.GaussianBlur(img, (3, 3), 0)
-    # img = cv2.resize(img, (224, 224))
-    # img = np.array(img)
-    # img = img[..., ::-1]
-    img = img / 255
-    # img = preprocess_input(img)
-    # img = img_to_array(img)
-    return img
+# def load_path(path):
+#     img = tf.io.read_file(path)
+#     img = tf.io.decode_png(img, channels=3)
+#     img = tf.image.resize(img, [224, 224])
+#     # img = cv2.GaussianBlur(img, (3, 3), 0)
+#     # img = cv2.resize(img, (224, 224))
+#     # img = np.array(img)
+#     img = img[..., ::-1] #todo make sure this should be needed
+#     img = img / 255
+#     # img = preprocess_input(img)
+#     # img = img_to_array(img)
+#     return img
 
 def process_path_flipped(path):
     return process_path(path, True)
@@ -59,32 +59,32 @@ def process_path(path, flip = False):
     # img = img_to_array(img)
     return img
 
-def load_data(path, shuffle = True, process = True):
+def load_data(path):
 
-    short = False;
+    short = True;
 
-    dataset = tf.data.Dataset.list_files(path + "input/*", shuffle)
+    dataset = tf.data.Dataset.list_files(path + "input/*", shuffle=False)
     if short:
-        dataset = dataset.take(100)
+        dataset = dataset.take(1000)
     print(dataset)
 
     angles = np.load(path + "output.npy")
     if short:
-        angles = angles[:100]
-    angles_flipped = 1 - angles #todo make sure this is working as intended
+        angles = angles[:1000]
+    # angles_flipped = 1 - angles #todo make sure this is working as intended
 
     angles = tf.data.Dataset.from_tensor_slices(angles.tolist())
-    angles_flipped = tf.data.Dataset.from_tensor_slices(angles_flipped.tolist())
-    angles_all = angles.concatenate(angles_flipped)
+    # angles_flipped = tf.data.Dataset.from_tensor_slices(angles_flipped.tolist())
+    # angles_all = angles.concatenate(angles_flipped)
 
-    if process:
-        dataset_unflipped = dataset.map(process_path, num_parallel_calls=tf.data.AUTOTUNE)
-        dataset_flipped = dataset.map(process_path_flipped, num_parallel_calls=tf.data.AUTOTUNE)
-        dataset = dataset_flipped.concatenate(dataset_flipped)
-        dataset = tf.data.Dataset.zip((dataset, angles_all))
-    else:
-        dataset = dataset.map(load_path, num_parallel_calls=tf.data.AUTOTUNE)
-        dataset = tf.data.Dataset.zip((dataset, angles))
+    # if process:
+    dataset_unflipped = dataset.map(process_path, num_parallel_calls=tf.data.AUTOTUNE)
+    # dataset_flipped = dataset.map(process_path_flipped, num_parallel_calls=tf.data.AUTOTUNE)
+    # dataset = dataset_flipped.concatenate(dataset_flipped)
+    dataset = tf.data.Dataset.zip((dataset_unflipped, angles))
+    # else:
+    #     dataset = dataset.map(load_path, num_parallel_calls=tf.data.AUTOTUNE)
+    #     dataset = tf.data.Dataset.zip((dataset, angles))
 
     if os.name != "nt":
         dataset = dataset.cache()
@@ -133,10 +133,10 @@ batch_size = 128;
 if os.name == "nt":
     batch_size = 64
 #
-input_data = load_data(directory, shuffle = False)
-input_train, input_test = split_dataset(input_data, left_size = .5)
-# input_train = input_data 
-# input_test = input_data
+input_data = load_data(directory)
+# input_train, input_test = split_dataset(input_data, left_size = .1)
+input_train = input_data 
+input_test = input_data
 
 # input_train = diversify_data(input_train)
 
@@ -155,11 +155,11 @@ input_test = input_test.batch(batch_size)
 
 # from keras.applications import ResNet50
 from keras.applications import MobileNetV2
-mobile_net = MobileNetV2(weights='imagenet', include_top=False)
+mobile_net = MobileNetV2(weights='imagenet' ) #include_top=False
 
 # input_data = preprocess_input(input_data)
-# for layer in mobile_net.layers[:143]:
-#     layer.trainable = False
+for layer in mobile_net.layers[:-5]:
+    layer.trainable = False
 # for layer in mobile_net.layers[:]:
 #     layer.trainable = False
 
@@ -171,7 +171,8 @@ def make_model():
 
     model.add(InputLayer(input_shape=(224, 224, 3)))
 
-    model.add(Rescaling(scale=1.0/127.5, offset=-1))
+    # model.add(Rescaling(scale=1.0/255.0))
+    model.add(Rescaling(scale=1.0/127.5, offset=-2))
 
     model.add(mobile_net)
     # model.add(Dropout(0.5))
@@ -179,15 +180,16 @@ def make_model():
     # model.add(BatchNormalization())
     # model.add(Dense(100, activation='elu'))
     # model.add(Dropout(0.5))
-    model.add(Dense(100, activation='elu'))
+    # model.add(Dense(100, activation='elu'))
     # model.add(Dropout(0.5))
-    model.add(Dense(50, activation='elu'))
+    model.add(Dense(100, activation='leaky_relu'))
+    model.add(Dense(50, activation='leaky_relu'))
     # model.add(Dropout(0.5))
-    model.add(Dense(10, activation='elu'))
+    model.add(Dense(10, activation='leaky_relu'))
     # model.add(Dropout(0.5))
     model.add(Dense(1))
     # model.add(Dense(1))
-    optimizer = Adam(learning_rate=1e-5)
+    optimizer = Adam(learning_rate=1e-3)
     # optimizer = RMSprop(learning_rate= 1e-5)
     model.compile(loss='mse', optimizer=optimizer)
     return model
@@ -207,10 +209,10 @@ my_callbacks = [
 
     tf.keras.callbacks.ReduceLROnPlateau(
         monitor='loss',
-        factor=0.2,
+        factor=0.5,
         verbose=True,
-          patience=3,
-          min_lr=0.001),
+          patience=8,
+          cooldown=5),
 
     tf.keras.callbacks.ModelCheckpoint(
         filepath=checkpoint_filepath,
@@ -224,10 +226,11 @@ my_callbacks = [
 ]
 
 
-# try:
-model.fit(input_train, validation_data=input_test, epochs=200, verbose=1, shuffle=1, callbacks=my_callbacks)
-# except KeyboardInterrupt:
-#     pass
+try:
+    # model.fit(input_train, validation_data=input_test, epochs=200, verbose=1, shuffle=1, callbacks=my_callbacks)
+    model.fit(input_train, epochs=200, verbose=1, shuffle=1, callbacks=my_callbacks)
+except KeyboardInterrupt:
+    pass
 
 model.load_weights(checkpoint_filepath)
 
@@ -243,8 +246,9 @@ model.load_weights(checkpoint_filepath)
 # plt.show()
 
 input_images = []
-input_images = load_data(directory, False, True)
+input_images = load_data(directory)
 # display_images = load_data(directory, False, False)
+# input_images = input_images.map(lambda x,y: x)
 input_images = input_images.batch(batch_size)
 print("predicting...")
 predictions = model.predict(input_images)
@@ -280,7 +284,7 @@ if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
 
     for img, prediction, output in zip(input_images, predictions, outputs):
         # input_image = cv2.pyrDown(np.array(input_image[0]))
-        img = img[0].numpy()
+        img = img[0].numpy() / 255
         # input_image = input_image.reshape((224, 224, 3))
         # print("size: ", input_image)
         draw_line(img, .5, (0, 0, 0), 1)
@@ -300,4 +304,4 @@ if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
     print("truth stddev: ", np.std(outputs))
     print("truth mean: ", np.mean(outputs))
 
-    # todo plot a comparison graph of these two arrays
+    # todo plot a comparison graph of these two arra
