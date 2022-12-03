@@ -70,20 +70,20 @@ def load_data(path):
     angles = np.load(path + "output.npy")
     if short:
         angles = angles[:100]
-    # angles_flipped = 1 - angles #todo make sure this is working as intended
+    angles_flipped = 1 - angles #todo make sure this is working as intended
 
     angles = tf.data.Dataset.from_tensor_slices(angles.tolist())
-    # angles_flipped = tf.data.Dataset.from_tensor_slices(angles_flipped.tolist())
-    # angles_all = angles.concatenate(angles_flipped)
+    angles_flipped = tf.data.Dataset.from_tensor_slices(angles_flipped.tolist())
+    angles_all = angles.concatenate(angles_flipped)
 
     # if process:
-    # dataset_unflipped = dataset.map(process_path, num_parallel_calls=tf.data.AUTOTUNE)
-    dataset_unflipped = dataset.map(process_path)
+    dataset_unflipped = dataset.map(process_path, num_parallel_calls=tf.data.AUTOTUNE)
+    # dataset_unflipped = dataset.map(process_path)
 
 
-    # dataset_flipped = dataset.map(process_path_flipped, num_parallel_calls=tf.data.AUTOTUNE)
-    # dataset = dataset_flipped.concatenate(dataset_flipped)
-    dataset = tf.data.Dataset.zip((dataset_unflipped, angles))
+    dataset_flipped = dataset.map(process_path_flipped, num_parallel_calls=tf.data.AUTOTUNE)
+    dataset = dataset_flipped.concatenate(dataset_flipped)
+    dataset = tf.data.Dataset.zip((dataset, angles_all))
     # else:
     #     dataset = dataset.map(load_path, num_parallel_calls=tf.data.AUTOTUNE)
     #     dataset = tf.data.Dataset.zip((dataset, angles))
