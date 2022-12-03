@@ -7,8 +7,7 @@ import os
 import keras
 import tensorflow as tf
 from keras.models import Sequential
-from keras.optimizers import Adam
-from keras.optimizers import RMSprop
+from keras.optimizers import Adam, RMSprop, SGD
 from keras.layers import Convolution2D, MaxPooling2D, Dropout, Flatten, Dense, BatchNormalization, Rescaling, InputLayer
 from keras.utils import load_img
 from keras.utils import img_to_array
@@ -61,16 +60,16 @@ def process_path(path, flip = False):
 
 def load_data(path):
 
-    short = True;
+    short = False;
 
     dataset = tf.data.Dataset.list_files(path + "input/*", shuffle=False)
     if short:
-        dataset = dataset.take(1000)
+        dataset = dataset.take(100)
     print(dataset)
 
     angles = np.load(path + "output.npy")
     if short:
-        angles = angles[:1000]
+        angles = angles[:100]
     # angles_flipped = 1 - angles #todo make sure this is working as intended
 
     angles = tf.data.Dataset.from_tensor_slices(angles.tolist())
@@ -78,7 +77,10 @@ def load_data(path):
     # angles_all = angles.concatenate(angles_flipped)
 
     # if process:
-    dataset_unflipped = dataset.map(process_path, num_parallel_calls=tf.data.AUTOTUNE)
+    # dataset_unflipped = dataset.map(process_path, num_parallel_calls=tf.data.AUTOTUNE)
+    dataset_unflipped = dataset.map(process_path)
+
+
     # dataset_flipped = dataset.map(process_path_flipped, num_parallel_calls=tf.data.AUTOTUNE)
     # dataset = dataset_flipped.concatenate(dataset_flipped)
     dataset = tf.data.Dataset.zip((dataset_unflipped, angles))
@@ -133,11 +135,10 @@ batch_size = 128;
 if os.name == "nt":
     batch_size = 64
 #
-input_data = load_data(directory)
+# input_data = load_data(directory)
 # input_train, input_test = split_dataset(input_data, left_size = .1)
-input_train = input_data 
-input_test = input_data
-
+input_train = load_data(directory) 
+input_test = load_data(directory) 
 # input_train = diversify_data(input_train)
 
 input_train = input_train.batch(batch_size)
@@ -158,7 +159,7 @@ from keras.applications import MobileNetV2
 mobile_net = MobileNetV2(weights='imagenet' ) #include_top=False
 
 # input_data = preprocess_input(input_data)
-for layer in mobile_net.layers[:-5]:
+for layer in mobile_net.layers[:]: #why does setting this to 5 work better than 10
     layer.trainable = False
 # for layer in mobile_net.layers[:]:
 #     layer.trainable = False
@@ -172,11 +173,11 @@ def make_model():
     model.add(InputLayer(input_shape=(224, 224, 3)))
 
     # model.add(Rescaling(scale=1.0/255.0))
-    model.add(Rescaling(scale=1.0/127.5, offset=-2))
+    model.add(Rescaling(scale=1.0/127.5, offset=-1))
 
     model.add(mobile_net)
     # model.add(Dropout(0.5))
-    model.add(Flatten())
+    # model.add(Flatten())
     # model.add(BatchNormalization())
     # model.add(Dense(100, activation='elu'))
     # model.add(Dropout(0.5))
@@ -187,10 +188,12 @@ def make_model():
     # model.add(Dropout(0.5))
     model.add(Dense(10, activation='leaky_relu'))
     # model.add(Dropout(0.5))
+    # model.add(Dense(1, activation='tanh'))
     model.add(Dense(1))
     # model.add(Dense(1))
     optimizer = Adam(learning_rate=1e-3)
-    # optimizer = RMSprop(learning_rate= 1e-5)
+    # optimizer = RMSprop(learning_rate= 1e-3)
+    # optimizer = SGD(learning_rate = 1e-3)
     model.compile(loss='mse', optimizer=optimizer)
     return model
 
@@ -216,7 +219,7 @@ my_callbacks = [
 
     tf.keras.callbacks.ModelCheckpoint(
         filepath=checkpoint_filepath,
-        verbose=1,
+        verbose=0,
         save_weights_only=True,
         monitor='loss',
         # mode='max',
@@ -226,13 +229,27 @@ my_callbacks = [
 ]
 
 
+# try:
+#     model.fit(input_train, validation_data=input_test, epochs=200, verbose=1, shuffle=0, callbacks=my_callbacks)
+#     # model.fit(input_train, epochs=200, verbose=1, shuffle=1, callbacks=my_callbacks)
+# except KeyboardInterrupt:
+#     pass
+#
+# model.load_weights(checkpoint_filepath)
+
+mobile_net.trainable = True;
+for layer in mobile_net.layers[:-5]: #why does setting this to 5 work better than 10
+    layer.trainable = False
+
+optimizer = Adam(learning_rate=1e-3)
+model.compile(loss='mse', optimizer=optimizer)
+print(model.summary())
+
 try:
-    # model.fit(input_train, validation_data=input_test, epochs=200, verbose=1, shuffle=1, callbacks=my_callbacks)
+    # model.fit(input_train, validation_data=input_test, epochs=200, verbose=1, shuffle=0, callbacks=my_callbacks)
     model.fit(input_train, epochs=200, verbose=1, shuffle=1, callbacks=my_callbacks)
 except KeyboardInterrupt:
     pass
-
-model.load_weights(checkpoint_filepath)
 
 
 # history = model.fit(input_data, output_data, epochs=25, batch_size=256, verbose=1, shuffle=1)
@@ -253,6 +270,10 @@ input_images = input_images.batch(batch_size)
 print("predicting...")
 predictions = model.predict(input_images)
 
+input_images = input_images.unbatch()
+print(input_images)
+outputs = np.load(directory + "output.npy")
+
 if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
 # if (True):
 
@@ -271,9 +292,6 @@ if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
     # predictions = predictions.unbatch()
     # print(predictions.size)
     # predictions = predictions.reshape((-1, *predictions.shape[-1:]))
-    input_images = input_images.unbatch()
-    print(input_images)
-    outputs = np.load(directory + "output.npy")
 
 
     def draw_line(img, rel_x, color, thickness = 2):
@@ -285,6 +303,7 @@ if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
     for img, prediction, output in zip(input_images, predictions, outputs):
         # input_image = cv2.pyrDown(np.array(input_image[0]))
         img = img[0].numpy() / 255
+        # img = img[..., ::-1] #todo make sure this should be needed
         # input_image = input_image.reshape((224, 224, 3))
         # print("size: ", input_image)
         draw_line(img, .5, (0, 0, 0), 1)
