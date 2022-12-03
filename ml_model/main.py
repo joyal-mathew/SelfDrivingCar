@@ -251,22 +251,20 @@ model.load_weights(checkpoint_filepath)
 
 
 #Train the entire model
-mobile_net.trainable = True;
-# for layer in mobile_net.layers[:-5]: #why does setting this to 5 work better than 10
-#     layer.trainable = False
-
-optimizer = Adam(learning_rate=1e-4)
-model.compile(loss='mse', optimizer=optimizer)
-print(model.summary())
-
-try:
-    # model.fit(input_train, validation_data=input_test, epochs=200, verbose=1, shuffle=0, callbacks=my_callbacks)
-    model.fit(input_train, epochs=200, verbose=1, shuffle=1, callbacks=my_callbacks)
-except KeyboardInterrupt:
-    pass
-
-
-model.load_weights(checkpoint_filepath)
+# mobile_net.trainable = True;
+#
+# optimizer = Adam(learning_rate=1e-5)
+# model.compile(loss='mse', optimizer=optimizer)
+# print(model.summary())
+#
+# try:
+#     # model.fit(input_train, validation_data=input_test, epochs=200, verbose=1, shuffle=0, callbacks=my_callbacks)
+#     model.fit(input_train, epochs=200, verbose=1, shuffle=1, callbacks=my_callbacks)
+# except KeyboardInterrupt:
+#     pass
+#
+#
+# model.load_weights(checkpoint_filepath)
 
 # history = model.fit(input_data, output_data, epochs=25, batch_size=256, verbose=1, shuffle=1)
 
