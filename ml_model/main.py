@@ -9,6 +9,7 @@ import tensorflow as tf
 from keras.models import Sequential
 from keras.optimizers import Adam, RMSprop, SGD
 from keras.layers import Convolution2D, MaxPooling2D, Dropout, Flatten, Dense, BatchNormalization, Rescaling, InputLayer
+import keras.layers as layers
 from keras.utils import load_img
 from keras.utils import img_to_array
 from keras.utils import split_dataset
@@ -27,19 +28,6 @@ from sklearn.model_selection import train_test_split
 
 
 directory = "annotator/dataset/"
-
-# def load_path(path):
-#     img = tf.io.read_file(path)
-#     img = tf.io.decode_png(img, channels=3)
-#     img = tf.image.resize(img, [224, 224])
-#     # img = cv2.GaussianBlur(img, (3, 3), 0)
-#     # img = cv2.resize(img, (224, 224))
-#     # img = np.array(img)
-#     img = img[..., ::-1] #todo make sure this should be needed
-#     img = img / 255
-#     # img = preprocess_input(img)
-#     # img = img_to_array(img)
-#     return img
 
 def process_path_flipped(path):
     return process_path(path, True)
@@ -60,7 +48,7 @@ def process_path(path, flip = False):
 
 def load_data(path):
 
-    flipped = False
+    flipped = True
     short = False
     num = 400
 
@@ -111,28 +99,6 @@ def load_data(path):
     print("== cardinality", dataset.cardinality())
     return dataset
 
-def diversify_data(dataset):
-
-    def map_func(*pair):
-        # print("type", type(pair))
-        # print("structure", x,y)
-        # return tf.data.Dataset.from_tensor_slices([x,y])
-        # return ((x,y), (x,y))
-        # list = []
-        # list.append(tf.data.Dataset.from_tensors([x,y]))
-        # list.append(tf.data.Dataset.from_tensors([x,y]))
-        # return tf.data.Dataset.from_tensors(pair)
-        # return tf.data.Dataset.from_tensor_slices([pair])
-        # tf.data.
-        return (pair, pair)
-
-    dataset = dataset.map(map_func)
-    print (dataset.element_spec)
-    dataset = dataset.flat_map(tf.data.Dataset.from_tensor_slices)
-    # dataset = dataset.unbatch()
-
-    print("== cardinality", dataset.cardinality())
-    print (dataset.element_spec)
 
     return dataset
 
@@ -140,11 +106,15 @@ batch_size = 128;
 if os.name == "nt":
     batch_size = 64
 #
-# input_data = load_data(directory)
-# input_train, input_test = split_dataset(input_data, left_size = .1)
-input_train = load_data(directory) 
-input_test = load_data(directory) 
+input_data = load_data(directory)
+# input_data = input_data.shuffle(10000)
+input_train, input_test = split_dataset(input_data, left_size = .5)
+
+# input_train = load_data(directory) 
+# input_test = load_data(directory) 
 # input_train = diversify_data(input_train)
+
+input_train = input_train.shuffle(10000, reshuffle_each_iteration=True)
 
 input_train = input_train.batch(batch_size)
 input_test = input_test.batch(batch_size)
@@ -177,7 +147,14 @@ def make_model():
 
     model.add(InputLayer(input_shape=(224, 224, 3)))
 
+    model.add(layers.RandomBrightness(factor=(.3, .3)))
+    model.add(layers.RandomContrast(factor=(.2, .2)))
+
+    model.add(layers.RandomTranslation(height_factor=(.2, .2), width_factor=(0.0, 0.0), fill_mode="nearest"))
+    # model.add(layers.RandomRotation(factor=(.1, .1), fill_mode="nearest"))
+    # model.add(lay)
     # model.add(Rescaling(scale=1.0/255.0))
+
     model.add(Rescaling(scale=1.0/127.5, offset=-1))
 
     model.add(mobile_net)
@@ -187,12 +164,13 @@ def make_model():
     # model.add(Dense(100, activation='elu'))
     # model.add(Dropout(0.5))
     # model.add(Dense(100, activation='elu'))
-    # model.add(Dropout(0.5))
+    model.add(Dropout(0.5))
     model.add(Dense(100, activation='leaky_relu'))
+    model.add(Dropout(0.5))
     model.add(Dense(50, activation='leaky_relu'))
-    # model.add(Dropout(0.5))
+    model.add(Dropout(0.5))
     model.add(Dense(10, activation='leaky_relu'))
-    # model.add(Dropout(0.5))
+    model.add(Dropout(0.5))
     # model.add(Dense(1, activation='tanh'))
     model.add(Dense(1))
     # model.add(Dense(1))
@@ -234,53 +212,26 @@ my_callbacks = [
     tf.keras.callbacks.TensorBoard(log_dir='./logs'),
 ]
 
-
-
 #Train the dense layers and part of the model
 mobile_net.trainable = True;
 for layer in mobile_net.layers[:-5]: #why does setting this to 5 work better than 10
     layer.trainable = False
 
-optimizer = Adam(learning_rate=1e-2)
+optimizer = Adam(learning_rate=1e-3)
 # optimizer = SGD(learning_rate=1e-3)
 model.compile(loss='mse', optimizer=optimizer)
 print(model.summary())
 
+
 try:
-    # model.fit(input_train, validation_data=input_test, epochs=200, verbose=1, shuffle=0, callbacks=my_callbacks)
-    model.fit(input_train, epochs=200, verbose=1, shuffle=1, callbacks=my_callbacks)
+    # model.fit(input_train, epochs=200, verbose=1, callbacks=my_callbacks)
+    model.fit(input_train, validation_data=input_train, epochs=200, verbose=1, callbacks=my_callbacks)
 except KeyboardInterrupt:
     pass
 
 model.load_weights(checkpoint_filepath)
 
 
-
-#Train the entire model
-# mobile_net.trainable = True;
-#
-# optimizer = Adam(learning_rate=1e-5)
-# model.compile(loss='mse', optimizer=optimizer)
-# print(model.summary())
-#
-# try:
-#     # model.fit(input_train, validation_data=input_test, epochs=200, verbose=1, shuffle=0, callbacks=my_callbacks)
-#     model.fit(input_train, epochs=200, verbose=1, shuffle=1, callbacks=my_callbacks)
-# except KeyboardInterrupt:
-#     pass
-#
-#
-# model.load_weights(checkpoint_filepath)
-
-# history = model.fit(input_data, output_data, epochs=25, batch_size=256, verbose=1, shuffle=1)
-
-# plt.plot(history.history['loss'])
-# plt.plot(history.history['val_loss'])
-# plt.legend(['training', 'validation'])
-# plt.title('Loss')
-# plt.xlabel('Epoch')
-#
-# plt.show()
 
 input_images = []
 input_images = load_data(directory)
@@ -305,21 +256,6 @@ print(predictions)
 if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
 # if (True):
 
-    # processed_images = input_data
-    # names = sorted(os.listdir(directory + "input"))
-    # for name in names:
-        # img = cv2.imread(directory + "input/" + name)
-        # cv2.imshow("test3", img)
-        # cv2.waitKey(0)
-        # break
-        # input_images.append(np.array(img))
-    #     img = process_image(img)
-    #     processed_images.append(img)
-
-
-    # predictions = predictions.unbatch()
-    # print(predictions.size)
-    # predictions = predictions.reshape((-1, *predictions.shape[-1:]))
 
 
     def draw_line(img, rel_x, color, thickness = 2):
@@ -328,7 +264,7 @@ if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
 
         cv2.line(img, (int(abs_x),0), (int(abs_x), 224), color, thickness = thickness)
 
-    for data, prediction in zip(input_images, predictions):
+    for i, (data, prediction) in enumerate(zip(input_images, predictions)):
         # print(output)
         # print(img)
         img, true_angle = data
@@ -341,7 +277,10 @@ if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
         # print("size: ", input_image)
         draw_line(img, .5, (0, 0, 0), 1)
         draw_line(img, true_angle, (0, 255, 0))
-        draw_line(img, prediction, (0, 0, 255))
+        if (i < len(predictions)/2):
+            draw_line(img, prediction, (0, 0, 255))
+        else:
+            draw_line(img, prediction, (2500, 0, 0))
 
         img = cv2.resize(img, [500, 500])
         cv2.imshow('Frame', img)
