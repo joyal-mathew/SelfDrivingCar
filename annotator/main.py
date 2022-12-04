@@ -1,18 +1,20 @@
 import itertools
 import cv2
-import time
 import os
 import numpy as np
 
 FRAME_SKIP = 5 # Count every n frames
+SLOW_DOWN_FACTOR = 5
 
 
-def warn(s, *args, **kwargs):
-    print("\033[33m[WARN]\033[0m\t" + s, *args, **kwargs)
+def warn(*args, **kwargs):
+    print(end="\033[33m[WARN]\033[0m\t")
+    print(*args, **kwargs)
 
 
-def info(s, *args, **kwargs):
-    print("\033[36m[INFO]\033[0m\t" + s, *args, **kwargs)
+def info(*args, **kwargs):
+    print(end="\033[36m[INFO]\033[0m\t")
+    print(*args, **kwargs)
 
 
 class Annotator(object):
@@ -35,7 +37,6 @@ class Annotator(object):
 
     def save_video(self, path, outputdir):
         width = len(str(len(self.values)))
-        print(width)
         info(f"Saving video, {path} to {outputdir}")
 
         video = cv2.VideoCapture(path)
@@ -49,7 +50,6 @@ class Annotator(object):
             if not result:
                 break
 
-            frame = cv2.pyrDown(frame)
             if self.values[self.i] >= 0:
                 cv2.imwrite(f"{outputdir}/img{str(self.written).rjust(width, '0')}.png", frame)
                 self.written += 1
@@ -67,8 +67,8 @@ class Annotator(object):
 
         self.mouseX = video.get(cv2.CAP_PROP_FRAME_WIDTH) / 2
 
-        fps = video.get(cv2.CAP_PROP_FPS)
-        mspf = int(1000 / fps)
+        fps = int(video.get(cv2.CAP_PROP_FPS))
+        mspf = int(1000 / fps * SLOW_DOWN_FACTOR)
         windowName = "Annotator"
         cv2.namedWindow(windowName)
         cv2.setMouseCallback(windowName, Annotator.mouseMove, self)
@@ -87,6 +87,7 @@ class Annotator(object):
 
             frame = cv2.pyrDown(frame)
             cv2.imshow(windowName, frame)
+
             if self.capture:
                 self.values.append(self.mouseX / frame.shape[1])
             else:
@@ -122,12 +123,15 @@ def main():
             os.remove("annotator/dataset/input/" + file)
 
     annotator = Annotator()
+    video_range = None
 
-    for file in os.listdir("annotator/data"):
-        annotator.annotate("annotator/data/" + file)
+    for i, file in enumerate(os.listdir("annotator/data")):
+        if video_range is not None and i in video_range:
+            annotator.annotate("annotator/data/" + file)
 
-    for file in os.listdir("annotator/data"):
-        annotator.save_video("annotator/data/" + file, "annotator/dataset/input")
+    for i, file in enumerate(os.listdir("annotator/data")):
+        if video_range is not None and i in video_range:
+            annotator.save_video("annotator/data/" + file, "annotator/dataset/input")
 
     annotator.finish()
 
