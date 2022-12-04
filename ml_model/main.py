@@ -60,48 +60,53 @@ def process_path(path, flip = False):
 
 def load_data(path):
 
-    short = False;
+    flipped = False
+    short = False
+    num = 400
 
     dataset = tf.data.Dataset.list_files(path + "input/*", shuffle=False)
     if short:
-        dataset = dataset.take(100)
+        dataset = dataset.take(num)
     print(dataset)
 
     angles = np.load(path + "output.npy")
     if short:
-        angles = angles[:100]
-    angles_flipped = 1 - angles #todo make sure this is working as intended
+        angles = angles[:num]
+    angles_flipped = (angles * - 1) + 1 #todo make sure this is working as intended
+    if short:
+        angles_flipped = angles_flipped[:num]
 
-    angles = tf.data.Dataset.from_tensor_slices(angles.tolist())
-    angles_flipped = tf.data.Dataset.from_tensor_slices(angles_flipped.tolist())
-    angles_all = angles.concatenate(angles_flipped)
+
+    angles_all = []
+    if flipped:
+        angles_all = np.concatenate((angles, angles_flipped))
+    else:
+        angles_all = angles
+
+    angles_all = tf.data.Dataset.from_tensor_slices(angles_all.tolist())
+
+    # angles = tf.data.Dataset.from_tensor_slices(angles.tolist())
+    # angles_flipped = tf.data.Dataset.from_tensor_slices(angles_flipped.tolist())
+    # angles_all = angles.concatenate(angles_flipped)
+    print("angles cardinatility", angles_all.cardinality())
 
     # if process:
-    dataset_unflipped = dataset.map(process_path, num_parallel_calls=tf.data.AUTOTUNE)
+    dataset_unflipped = dataset.map(process_path)
     # dataset_unflipped = dataset.map(process_path)
 
 
-    dataset_flipped = dataset.map(process_path_flipped, num_parallel_calls=tf.data.AUTOTUNE)
-    dataset = dataset_flipped.concatenate(dataset_flipped)
+    dataset_flipped = dataset.map(process_path_flipped)
+    dataset = dataset_unflipped.concatenate(dataset_flipped)
+
+    if not flipped:
+        dataset = dataset_unflipped
+
+    print("dataset cardinatility", dataset.cardinality())
     dataset = tf.data.Dataset.zip((dataset, angles_all))
-    # else:
-    #     dataset = dataset.map(load_path, num_parallel_calls=tf.data.AUTOTUNE)
-    #     dataset = tf.data.Dataset.zip((dataset, angles))
 
     if os.name != "nt":
         dataset = dataset.cache()
         dataset = dataset.prefetch(buffer_size=tf.data.AUTOTUNE)
-
-    # print("input images: ", tf.data.experimental.cardinality(dataset).numpy())
-    # print(tf.data.experimental.cardinality(val_ds).numpy())
-
-    # for image, label in dataset.take(10):
-    #   print("Image shape: ", image.numpy().shape)
-    #   print("Label: ", label.numpy())
-
-    # for image, label in dataset.take(10):
-    #   print("Image shape: ", image.numpy().shape)
-    #   print("Label: ", label.numpy())
 
     print("== cardinality", dataset.cardinality())
     return dataset
@@ -236,7 +241,8 @@ mobile_net.trainable = True;
 for layer in mobile_net.layers[:-5]: #why does setting this to 5 work better than 10
     layer.trainable = False
 
-optimizer = Adam(learning_rate=1e-3)
+optimizer = Adam(learning_rate=1e-2)
+# optimizer = SGD(learning_rate=1e-3)
 model.compile(loss='mse', optimizer=optimizer)
 print(model.summary())
 
@@ -281,12 +287,20 @@ input_images = load_data(directory)
 # display_images = load_data(directory, False, False)
 # input_images = input_images.map(lambda x,y: x)
 input_images = input_images.batch(batch_size)
-print("predicting...")
+print(f"predicting {input_images.cardinality()} batches...")
 predictions = model.predict(input_images)
 
 input_images = input_images.unbatch()
-print(input_images)
-outputs = np.load(directory + "output.npy")
+# print(predictions.element_spec)
+print(f"predicted {input_images.cardinality()} images")
+print(predictions)
+
+# outputs = np.load(directory + "output.npy")[:400]
+# print(outputs)
+# outputs_flipped = (outputs * - 1) + 1 #todo make sure this is working as intended
+# print(outputs_flipped)
+
+# outputs = np.concatenate((outputs, outputs_flipped))
 
 if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
 # if (True):
@@ -314,19 +328,24 @@ if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
 
         cv2.line(img, (int(abs_x),0), (int(abs_x), 224), color, thickness = thickness)
 
-    for img, prediction, output in zip(input_images, predictions, outputs):
+    for data, prediction in zip(input_images, predictions):
+        # print(output)
+        # print(img)
+        img, true_angle = data
+        # print(in_angle)
+        # print(type(in_angle))
         # input_image = cv2.pyrDown(np.array(input_image[0]))
-        img = img[0].numpy() / 255
+        img = img.numpy() / 255
         # img = img[..., ::-1] #todo make sure this should be needed
         # input_image = input_image.reshape((224, 224, 3))
         # print("size: ", input_image)
         draw_line(img, .5, (0, 0, 0), 1)
-        draw_line(img, output, (0, 255, 0))
+        draw_line(img, true_angle, (0, 255, 0))
         draw_line(img, prediction, (0, 0, 255))
 
         img = cv2.resize(img, [500, 500])
         cv2.imshow('Frame', img)
-        print(f"{prediction[0]=}, {output=}")
+        print(f"{prediction[0]=}, {true_angle=}")
 
         key = cv2.waitKey(20) & 0xFF
         if key == ord("q"):
@@ -334,7 +353,7 @@ if (input("Would you like to preview the model's predictions? y/N\n") == "y"):
 
     print("prediciton stddev: ", np.std(predictions))
     print("prediction mean: ", np.mean(predictions))
-    print("truth stddev: ", np.std(outputs))
-    print("truth mean: ", np.mean(outputs))
+    # print("truth stddev: ", np.std(outputs))
+    # print("truth mean: ", np.mean(outputs))
 
     # todo plot a comparison graph of these two arra
