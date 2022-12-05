@@ -185,7 +185,7 @@ model = make_model()
 print(model.summary())
 # print(model.layers)
 # model.layers[0].trainable=False 
-checkpoint_filepath = './checkpoint'
+checkpoint_filepath = './tmp/checkpoint'
 
 my_callbacks = [
     # tf.keras.callbacks.EarlyStopping(
