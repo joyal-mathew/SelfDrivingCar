@@ -108,7 +108,8 @@ if os.name == "nt":
 #
 input_data = load_data(directory)
 # input_data = input_data.shuffle(10000)
-input_train, input_test = split_dataset(input_data, left_size = .5)
+# input_train, input_test = split_dataset(input_data, left_size = .5)
+input_test, input_train = split_dataset(input_data, left_size = .5)
 
 # input_train = load_data(directory) 
 # input_test = load_data(directory) 
@@ -147,7 +148,7 @@ def make_model():
 
     model.add(InputLayer(input_shape=(224, 224, 3)))
 
-    model.add(layers.RandomBrightness(factor=(.3, .3)))
+    model.add(layers.RandomBrightness(factor=(-.3, .3)))
     model.add(layers.RandomContrast(factor=(.2, .2)))
 
     model.add(layers.RandomTranslation(height_factor=(.2, .2), width_factor=(0.0, 0.0), fill_mode="nearest"))
@@ -164,13 +165,13 @@ def make_model():
     # model.add(Dense(100, activation='elu'))
     # model.add(Dropout(0.5))
     # model.add(Dense(100, activation='elu'))
-    model.add(Dropout(0.5))
+    # model.add(Dropout(0.5))
     model.add(Dense(100, activation='leaky_relu'))
-    model.add(Dropout(0.5))
+    # model.add(Dropout(0.5))
     model.add(Dense(50, activation='leaky_relu'))
-    model.add(Dropout(0.5))
+    # model.add(Dropout(0.5))
     model.add(Dense(10, activation='leaky_relu'))
-    model.add(Dropout(0.5))
+    # model.add(Dropout(0.5))
     # model.add(Dense(1, activation='tanh'))
     model.add(Dense(1))
     # model.add(Dense(1))
@@ -184,7 +185,7 @@ model = make_model()
 print(model.summary())
 # print(model.layers)
 # model.layers[0].trainable=False 
-checkpoint_filepath = '/tmp/checkpoint'
+checkpoint_filepath = './checkpoint'
 
 my_callbacks = [
     # tf.keras.callbacks.EarlyStopping(
@@ -209,7 +210,7 @@ my_callbacks = [
         # mode='max',
         save_best_only=True),
 
-    tf.keras.callbacks.TensorBoard(log_dir='./logs'),
+    # tf.keras.callbacks.TensorBoard(log_dir='./logs'),
 ]
 
 #Train the dense layers and part of the model
@@ -225,7 +226,7 @@ print(model.summary())
 
 try:
     # model.fit(input_train, epochs=200, verbose=1, callbacks=my_callbacks)
-    model.fit(input_train, validation_data=input_train, epochs=200, verbose=1, callbacks=my_callbacks)
+    model.fit(input_train, validation_data=input_test, epochs=200, verbose=1, callbacks=my_callbacks)
 except KeyboardInterrupt:
     pass
 
