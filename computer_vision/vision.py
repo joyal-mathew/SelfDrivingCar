@@ -13,7 +13,7 @@ def colors_equal(c1, c2):
 
 def approach(v):
   return v*1
-  
+
 def dialate(image, n, w, h, color):
   # print(disp(image, w, h))
   for _ in range(n):
@@ -45,11 +45,11 @@ def dialate(image, n, w, h, color):
 def find_turn_angle(file, window, lastColor, doDialate, prediction, truth):
 
   image = cv2.imread(file)
-  
+
   image = cv2.GaussianBlur(image, (51, 51), cv2.BORDER_DEFAULT)
 
   h, w, _ = image.shape
-  
+
   b = 0
   g = 0
   r = 0
@@ -73,7 +73,7 @@ def find_turn_angle(file, window, lastColor, doDialate, prediction, truth):
     g = g//counter
     b = b//counter
   # print(b, g, r)
-  
+
 
   left = 0
   for i in range(w//2):
@@ -141,14 +141,14 @@ def find_turn_angle(file, window, lastColor, doDialate, prediction, truth):
     image[j, average, 1] = 0
     image[j, average, 2] = 255
 
-  
+
   if(doDialate):
     n = 50
     dialate(image, n, w, h, (0,0,0))
     dialate(image, n, w, h, (0,0,255))
 
-  
-  
+
+
   cv2.imshow(window, image)
   pressed = cv2.waitKey(0) & 0xFF
   if pressed == ord("q"):
@@ -188,20 +188,15 @@ def adaptive(file):
 windowName = "Image"
 window = cv2.namedWindow(windowName)
 
-truth = np.load("output.npy")
+truth = np.load("dataset/output.npy")
 total_error = 0
 
 lastColor = (10, 10, 10)
 doDialate = False
 prediction = 0.5
 for i in range(3000, 4000):
-  oh = "input\\"
-  s = "img"
-  t = f'{i:05d}'
-  r = ".png"
-  string = oh + s + t + r
-  # print(string)
-  lastColor, toggleDialate, angle = find_turn_angle(string, windowName, lastColor, doDialate, prediction, truth[i])
+  path = f"dataset/input/img{i:05}.png"
+  lastColor, toggleDialate, angle = find_turn_angle(path, windowName, lastColor, doDialate, prediction, truth[i])
   prediction += approach(angle - prediction)
   total_error += (truth[i] - prediction)**2
   # print("total error", total_error / (i+1))
