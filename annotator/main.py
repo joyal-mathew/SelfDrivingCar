@@ -126,11 +126,11 @@ def main():
     video_range = None
 
     for i, file in enumerate(os.listdir("annotator/data")):
-        if video_range is not None and i in video_range:
+        if video_range is None or i in video_range:
             annotator.annotate("annotator/data/" + file)
 
     for i, file in enumerate(os.listdir("annotator/data")):
-        if video_range is not None and i in video_range:
+        if video_range is None or i in video_range:
             annotator.save_video("annotator/data/" + file, "annotator/dataset/input")
 
     annotator.finish()
